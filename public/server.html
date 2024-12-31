@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Server Video Stream</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui;
+      overflow: hidden;
+    }
+    #remoteVideo {
+      width: 100%;
+      height: 100vh;
+      object-fit: contain;
+      background: #000;
+    }
+    #remoteVideo:fullscreen {
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+    }
+    .status {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      color: white;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 8px 16px;
+      border-radius: 20px;
+      z-index: 10;
+      transition: opacity 0.3s;
+    }
+    .status.hidden {
+      opacity: 0;
+    }
+    .waiting {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      text-align: center;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 12px;
+      z-index: 5;
+    }
+    .error {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #ff4444;
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body>
+  <div id="status" class="status">Waiting for connection...</div>
+  <video id="remoteVideo" autoplay playsinline></video>
+  <div id="waiting" class="waiting">
+    <h2>Waiting for mobile device to connect...</h2>
+    <p>Open the mobile page on your device to start streaming</p>
+  </div>
+  <script>
+    const socket = io();
+    const remoteVideo = document.getElementById('remoteVideo');
+    const status = document.getElementById('status');
+    const waiting = document.getElementById('waiting');
+    let peerConnection;
+    let isFullscreen = false;
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        remoteVideo.requestFullscreen().catch(err => {
+          console.error(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    // Handle fullscreen change
+    document.addEventListener('fullscreenchange', () => {
+      isFullscreen = !!document.fullscreenElement;
+      status.classList.toggle('hidden', isFullscreen);
+    });
+
+    // Listen for Enter key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        toggleFullScreen();
+      }
+    });
+
+    function setupWebRTC() {
+      if (peerConnection) {
+        peerConnection.close();
+      }
+
+      peerConnection = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ],
+        iceCandidatePoolSize: 10
+      });
+
+      peerConnection.ontrack = (event) => {
+        if (event.streams && event.streams[0]) {
+          remoteVideo.srcObject = event.streams[0];
+          waiting.style.display = 'none';
+          status.textContent = 'Connected - Receiving Stream';
+        }
+      };
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('ice-candidate', event.candidate);
+        }
+      };
+
+      peerConnection.oniceconnectionstatechange = () => {
+        status.textContent = `Connection: ${peerConnection.iceConnectionState}`;
+        if (peerConnection.iceConnectionState === 'disconnected') {
+          waiting.style.display = 'block';
+          if (remoteVideo.srcObject) {
+            remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+            remoteVideo.srcObject = null;
+          }
+        }
+      };
+    }
+
+    socket.on('offer', async (offer) => {
+      try {
+        setupWebRTC();
+        await peerConnection.setRemoteDescription(offer);
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit('answer', answer);
+      } catch (error) {
+        console.error('Error handling offer:', error);
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error';
+        errorDiv.textContent = 'Error establishing connection. Please refresh the page.';
+        document.body.appendChild(errorDiv);
+      }
+    });
+
+    socket.on('ice-candidate', async (candidate) => {
+      try {
+        if (peerConnection && peerConnection.signalingState !== 'closed') {
+          await peerConnection.addIceCandidate(candidate);
+        }
+      } catch (error) {
+        console.error('Error adding ICE candidate:', error);
+      }
+    });
+
+    socket.on('peer-disconnected', () => {
+      status.textContent = 'Peer disconnected';
+      waiting.style.display = 'block';
+      if (remoteVideo.srcObject) {
+        remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+        remoteVideo.srcObject = null;
+      }
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+      }
+    });
+
+    // Handle window resize
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        if (remoteVideo.srcObject && peerConnection) {
+          const tracks = remoteVideo.srcObject.getTracks();
+          tracks.forEach(track => {
+            const sender = peerConnection.getSenders().find(s => s.track === track);
+            if (sender) {
+              sender.setParameters(sender.getParameters());
+            }
+          });
+        }
+      }, 500);
+    });
+  </script>
+</body>
+</html>
