@@ -21,8 +21,8 @@ This project is a video streaming application that uses WebRTC for real-time com
 1. Clone the repository:
 
    ```sh
-   git clone https://github.com/your-username/video-streaming-app.git
-   cd video-streaming-app
+   git clone https://github.com/johnbenet009/mobicame.git
+   cd mobicame
    ```
 
 2. Install dependencies:
