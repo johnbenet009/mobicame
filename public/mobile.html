@@ -148,7 +148,7 @@
         socket.emit('offer', offer);
         status.textContent = 'Connected - Streaming';
       } catch (error) {
-        //showError(`Error: ${error.message}. Please ensure camera permissions are granted.`);
+        showError(`Error: ${error.message}. Please ensure camera permissions are granted.`);
       }
     }
 
