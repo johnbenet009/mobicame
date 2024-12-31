@@ -18,6 +18,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Serve static files
 app.use(express.static('public'));
 
+// Serve socket.io client library
+app.use('/socket.io', express.static(join(__dirname, 'node_modules', 'socket.io', 'client-dist')));
+
 // Enable CORS for all routes
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -50,6 +53,10 @@ io.on('connection', (socket) => {
 
   socket.on('ice-candidate', (candidate) => {
     socket.broadcast.emit('ice-candidate', candidate);
+  });
+
+  socket.on('broadcast', (message) => {
+    io.emit('broadcast', message);
   });
 
   socket.on('disconnect', () => {

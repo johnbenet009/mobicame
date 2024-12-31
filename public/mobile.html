@@ -40,6 +40,7 @@
       left: 50%;
       transform: translate(-50%, -50%);
       background: #ff4444;
+      opacity: 0.8;
       color: white;
       padding: 20px;
       border-radius: 8px;
@@ -156,12 +157,38 @@
       errorDiv.className = 'error';
       errorDiv.textContent = message;
       document.body.appendChild(errorDiv);
+
+      let countdown = 15;
+      const countdownInterval = setInterval(() => {
+        if (countdown > 0) {
+          errorDiv.textContent = `${message} - ${countdown}`;
+          countdown--;
+        } else {
+          clearInterval(countdownInterval);
+          errorDiv.remove();
+        }
+      }, 1000); // Update every second
     }
+
+    function checkNotification() {
+      const message = localStorage.getItem('notificationMessage');
+      if (message) {
+        showError(message);
+        localStorage.removeItem('notificationMessage');
+      }
+    }
+
+    // Check for notifications every 5 seconds
+    setInterval(checkNotification, 5000);
+
+    checkNotification();
 
     socket.on('answer', async (answer) => {
       try {
-        if (peerConnection.signalingState !== 'closed') {
+        if (peerConnection.signalingState === 'have-local-offer') {
           await peerConnection.setRemoteDescription(answer);
+        } else {
+          console.warn('Cannot set remote description in state:', peerConnection.signalingState);
         }
       } catch (error) {
         console.error('Error setting remote description:', error);
@@ -184,6 +211,14 @@
         peerConnection.close();
       }
       setTimeout(() => setupWebRTC(cameraSelect.value), 2000);
+    });
+
+    socket.on('notification', (message) => {
+      showError(message);
+    });
+
+    socket.on('broadcast', (message) => {
+      showError(message);
     });
 
     // Handle page visibility and orientation changes

@@ -8,7 +8,7 @@
     body {
       margin: 0;
       padding: 20px;
-      font-family: system-ui;
+      font-family: system-ui, sans-serif;
       background: #f0f2f5;
       min-height: 100vh;
       display: flex;
@@ -23,6 +23,8 @@
       border-radius: 12px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       text-align: center;
+      width: 100%;
+      box-sizing: border-box;
     }
     h1 {
       color: #1a1a1a;
@@ -32,6 +34,7 @@
       display: flex;
       gap: 16px;
       justify-content: center;
+      flex-wrap: wrap;
     }
     .button {
       display: inline-block;
@@ -41,6 +44,9 @@
       text-decoration: none;
       border-radius: 6px;
       transition: background 0.2s;
+      flex: 1;
+      text-align: center;
+      min-width: 120px;
     }
     .button:hover {
       background: #0052cc;
@@ -50,17 +56,73 @@
       line-height: 1.6;
       margin-bottom: 32px;
     }
+    .notification {
+      margin-top: 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .notification input {
+      padding: 12px;
+      font-size: 1em;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      width: 100%;
+      max-width: 400px;
+      margin-bottom: 16px;
+      box-sizing: border-box;
+    }
+    .notification button {
+      padding: 12px 24px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .notification button:hover {
+      background: #218838;
+    }
   </style>
+  <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
   <div class="container">
     <h1>Video Streaming App</h1>
     <p>Choose your role to start streaming:</p>
     <div class="buttons">
-      <a href="/server" class="button">View Stream</a>
+      <a href="/server" target="_blank" class="button">View Stream</a>
       <a href="/mobile" class="button">Mobile Camera</a>
-      
+    </div>
+    <div class="notification">
+      <input type="text" id="notificationMessage" placeholder="Enter notification message" />
+      <button id="sendNotification" class="button">Send Notification</button>
     </div>
   </div>
+  <script>
+    const socket = io();
+
+    document.getElementById('sendNotification').addEventListener('click', () => {
+      const message = document.getElementById('notificationMessage').value;
+      const sendButton = document.getElementById('sendNotification');
+      if (message) {
+        socket.emit('broadcast', message);
+        sendButton.disabled = true;
+        let countdown = 15;
+        sendButton.textContent = `Notification Sent - ${countdown}`;
+        const countdownInterval = setInterval(() => {
+          if (countdown > 0) {
+            countdown--;
+            sendButton.textContent = `Notification Sent - ${countdown}`;
+          } else {
+            clearInterval(countdownInterval);
+            sendButton.disabled = false;
+            sendButton.textContent = 'Send Notification';
+          }
+        }, 1000);
+      }
+    });
+  </script>
 </body>
 </html>
